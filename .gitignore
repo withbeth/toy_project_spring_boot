@@ -1,0 +1,6 @@
+.idea
+.gradle
+.check_up_to_date
+tmp
+
+build

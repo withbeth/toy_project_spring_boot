@@ -1,0 +1,75 @@
+buildscript {
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+        mavenCentral()
+    }
+    dependencies {
+        classpath "org.springframework.boot:spring-boot-gradle-plugin:2.1.4.RELEASE"
+        classpath "gradle.plugin.com.palantir.gradle.docker:gradle-docker:0.22.1"
+    }
+}
+
+apply plugin: 'java'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'io.spring.dependency-management'
+apply plugin: 'idea'
+apply plugin: "com.palantir.docker"
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+
+bootJar {
+    baseName = 'gs-spring-boot-docker'
+}
+
+repositories {
+    mavenCentral()
+}
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+dependencies {
+    compile("org.springframework.boot:spring-boot-starter-web")
+    testCompile("org.springframework.boot:spring-boot-starter-test")
+}
+
+// unpack generated boot fat jar(fully executable jar) and copy to build directory
+task unpack(type: Copy) {
+    dependsOn "bootJar"
+    def inputFiles = zipTree(tasks.bootJar.outputs.files.singleFile)
+    def outputDir = "build/dependency"
+    from(inputFiles)
+    into(outputDir)
+}
+
+task checkUpToDate {
+    description = 'Check Up-To-Date'
+
+    def checkFile = file(new File(".check_up_to_date").absoluteFile)
+
+    FileTree projectFileTree = fileTree(dir: project.projectDir)
+    projectFileTree.exclude "${buildDir}/**/*"
+
+    inputs.files projectFileTree
+    outputs.file checkFile
+
+    doLast {
+        println "[${project.name}] needs refresh."
+        if (checkFile.exists()) {
+            checkFile.delete()
+        }
+
+        checkFile.createNewFile()
+    }
+}
+
+// Build a docker image
+docker {
+    name "${project.group}/${bootJar.baseName}"
+    copySpec.from(tasks.unpack.outputs).into("dependency")
+    buildArgs(['DEPENDENCY': "dependency"])
+}
+
